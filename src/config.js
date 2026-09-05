@@ -28,6 +28,9 @@ function fail(message) {
  *                 label pages in the dashboard.
  *   probes        whether requests for files only a scanner asks for are
  *                 counted as a crawler named "scanner". Default true.
+ *   fakeBrowsers  whether a browser user agent that sends none of what a
+ *                 browser sends (Accept-Language, the Sec-Fetch headers) is
+ *                 counted as a crawler named "fake browser". Default true.
  *   searchConsole optional: { secret, site?, property? }. Switches on the
  *                 Google Search Console panels. `secret` names the env var
  *                 holding the service-account JSON; `site` is the host whose
@@ -92,6 +95,7 @@ export function resolveOptions(options = {}) {
     launchDate,
     titlesUrl: options.titlesUrl ? String(options.titlesUrl) : null,
     probes: options.probes !== false,
+    fakeBrowsers: options.fakeBrowsers !== false,
     searchConsole,
   };
 }

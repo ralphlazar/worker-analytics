@@ -20,7 +20,16 @@ one-way HMAC of address and user agent keyed on the day and the password.
 nothing stored can be turned back into who they were.
 
 Crawlers are counted per day in a `bot_hits` table, never logged as
-visitors. So are scanner probes: a request for `/.env`, `/wp-login.php`,
+visitors. So is anything wearing a browser user agent without a browser behind
+it: every real browser sends `Accept-Language`, and every modern one (Chrome
+and Edge since 76, Firefox since 90, Safari and iOS since 16.4) sends the
+`Sec-Fetch` headers on a page navigation, so a request that claims one of
+those and sends neither is a crawler named `fake browser`. Older browsers that
+never sent them are judged on `Accept-Language` alone. On one site's first day
+this was six in ten recorded page views. When you test a visit with curl,
+send what a browser sends beside the user agent, `-H 'Accept-Language: en-GB'
+-H 'Sec-Fetch-Mode: navigate' -H 'Sec-Fetch-Dest: document'`, or the visit is
+counted as a fake browser, which is the rule working. So are scanner probes: a request for `/.env`, `/wp-login.php`,
 `/.git/config` and the rest of the leaked-secrets checklist is a crawler
 named `scanner` whatever its user agent claims, because scanners claim to be
 browsers and would otherwise be half the visitor count. Images, APIs, the
@@ -39,7 +48,7 @@ visitor hashes, since they are keyed on it.
 ## Install
 
 ```bash
-npm install github:ralphlazar/worker-analytics#v0.2.0
+npm install github:ralphlazar/worker-analytics#v0.2.1
 ```
 
 The repo is public, so npm needs no credentials: for a GitHub tag it fetches
@@ -240,6 +249,7 @@ What differs from a Worker:
 | `launchDate` | none | `YYYY-MM-DD`; the start of the dashboard's "All" range |
 | `titlesUrl` | none | URL of a JSON array of `{ href, title }` used to label pages |
 | `probes` | `true` | Count scanner probes as a crawler named `scanner` |
+| `fakeBrowsers` | `true` | Count a browser user agent that sends none of what a browser sends as a crawler named `fake browser` |
 | `searchConsole` | off | `{ secret, site?, property? }`: the Google searches panels, see below |
 
 Options are checked once at startup and a mistake throws, so a bad

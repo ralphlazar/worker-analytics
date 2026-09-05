@@ -14,7 +14,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  isBot, botName, isProbe, deviceOf, browserOf, osOf, languageOf, referrerOf, shouldRecord,
+  isBot, botName, isProbe, isFakeBrowser, deviceOf, browserOf, osOf, languageOf, referrerOf, shouldRecord,
   visitorHash, describe, writePageview, recordPageview, recordEvent,
 } from '../src/collect.js';
 import { sessionsOf, totalsOf, series, weekGrid, aggregate, buildReport, buildCsv, bucketFor } from '../src/report.js';
@@ -29,11 +29,18 @@ const IPAD = 'Mozilla/5.0 (iPad; CPU OS 17_5 like Mac OS X) AppleWebKit/605.1.15
 const ANDROID = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36';
 const EDGE = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 Edg/128.0.0.0';
 const GOOGLEBOT = 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)';
+const FIREFOX = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:129.0) Gecko/20100101 Firefox/129.0';
+const OLD_FIREFOX = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0';
+const OLD_SAFARI = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.6 Safari/605.1.15';
+const OLD_IPAD = 'Mozilla/5.0 (iPad; CPU OS 15_8 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.6 Mobile/15E148 Safari/604.1';
+// What a real browser sends on a page navigation, beside its user agent.
+const NAVIGATION = { 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document' };
 
 const page = (path, over = {}) => new Request(`https://example.com${path}`, {
   method: over.method || 'GET',
   headers: {
     'user-agent': CHROME, 'cf-connecting-ip': '203.0.113.7', 'accept-language': 'en-GB,en;q=0.9',
+    ...NAVIGATION,
     ...(over.headers || {}),
   },
 });
@@ -210,6 +217,46 @@ test('treats a request for a file that never existed as a scanner, not a visitor
   const verified = page('/.env', { headers: { 'user-agent': GOOGLEBOT } });
   verified.cf = { verifiedBotCategory: 'Search Engine Crawler' };
   assert.equal((await describe(verified, htmlResponse(404), {})).botName, 'search engine crawler');
+});
+
+test('a browser user agent with no browser behind it is a fake browser, not a visitor', async () => {
+  const req = (headers) => new Request('https://example.com/about/', { headers });
+  const LANG = { 'accept-language': 'en-GB,en;q=0.9' };
+  // No Accept-Language is enough on its own, whatever the user agent claims.
+  assert.equal(isFakeBrowser(req({ 'user-agent': CHROME, ...NAVIGATION })), true);
+  assert.equal(isFakeBrowser(req({ 'user-agent': OLD_SAFARI })), true);
+  // A version that always sends the Sec-Fetch headers, and does not, is a library.
+  assert.equal(isFakeBrowser(req({ 'user-agent': CHROME, ...LANG })), true);
+  assert.equal(isFakeBrowser(req({ 'user-agent': EDGE, ...LANG })), true);
+  assert.equal(isFakeBrowser(req({ 'user-agent': ANDROID, ...LANG })), true);
+  assert.equal(isFakeBrowser(req({ 'user-agent': IPHONE, ...LANG })), true, 'iOS 17 sends them');
+  assert.equal(isFakeBrowser(req({ 'user-agent': FIREFOX, ...LANG })), true);
+  // The real thing.
+  assert.equal(isFakeBrowser(req({ 'user-agent': CHROME, ...LANG, ...NAVIGATION })), false);
+  assert.equal(isFakeBrowser(req({ 'user-agent': IPHONE, ...LANG, ...NAVIGATION })), false);
+  assert.equal(isFakeBrowser(req({ 'user-agent': FIREFOX, ...LANG, 'sec-fetch-mode': 'navigate' })), false);
+  // Browsers that never sent them are judged on Accept-Language alone.
+  assert.equal(isFakeBrowser(req({ 'user-agent': OLD_SAFARI, ...LANG })), false);
+  assert.equal(isFakeBrowser(req({ 'user-agent': OLD_IPAD, ...LANG })), false, 'iOS 15 never sent them');
+  assert.equal(isFakeBrowser(req({ 'user-agent': OLD_FIREFOX, ...LANG })), false);
+  assert.equal(isFakeBrowser(req({ 'user-agent': 'Mozilla/5.0 (compatible; SomethingElse/1.0)', ...LANG })), false);
+
+  // Counted as a crawler named "fake browser", never written as a visitor.
+  const db = fakeDb();
+  const row = await writePageview(req({ 'user-agent': CHROME, ...LANG, 'cf-connecting-ip': '203.0.113.7' }), htmlResponse(), { ANALYTICS_DB: db, ANALYTICS_PASSWORD: 's' });
+  assert.equal(row.bot, true);
+  assert.equal(row.botName, 'fake browser');
+  assert.equal(row.visitor, null);
+  assert.match(db.calls[0].sql, /INSERT INTO bot_hits/);
+  assert.deepEqual(db.calls[0].args, [row.day, 'fake browser']);
+  // A named crawler keeps its name, and a probe is a scanner first.
+  assert.equal((await describe(req({ 'user-agent': GOOGLEBOT }), htmlResponse(), {})).botName, 'googlebot');
+  assert.equal((await describe(new Request('https://example.com/.env', { headers: { 'user-agent': CHROME } }), htmlResponse(404), {})).botName, 'scanner');
+  // A site can switch it off.
+  const lenient = await describe(req({ 'user-agent': CHROME, ...LANG }), htmlResponse(), {}, Date.now(), { fakeBrowsers: false });
+  assert.equal(lenient.bot, false);
+  assert.equal(resolveOptions({}).fakeBrowsers, true);
+  assert.equal(resolveOptions({ fakeBrowsers: false }).fakeBrowsers, false);
 });
 
 test('writes a person as one pageview row', async () => {

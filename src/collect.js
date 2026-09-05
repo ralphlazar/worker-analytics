@@ -76,6 +76,43 @@ export function isProbe(pathname) {
   });
 }
 
+// A browser user agent is the easiest header to fake, and most of what wore one
+// on the first site's first day was not a browser: HTTP libraries and
+// form-probing bots with a Chrome string pasted in, one page each from hundreds
+// of addresses. Real browsers give themselves away by what else they send.
+// Every one sends Accept-Language. Every modern one sends the Sec-Fetch headers
+// on a page navigation: Chrome and Edge since 76, Firefox since 90, Safari since
+// 16.4, and everything on iOS since 16.4 whatever it calls itself. A request
+// that claims a version which would send them and does not is counted as a
+// crawler named "fake browser", never as a visitor. A user agent that never
+// sent them, an old iPad say, is judged on Accept-Language alone, so a person
+// on an old browser still counts. What passes both tests and is still a bot is
+// a real browser engine driven by a script, which nothing short of a
+// JavaScript challenge tells from a person.
+const SEC_FETCH_SINCE = [
+  // iOS first: Chrome and Firefox there are WebKit, so the iOS version decides.
+  [/(?:iphone|ipad|ipod).*? os (\d+)_(\d+)/i, (m) => Number(m[1]) + Number(m[2]) / 10 >= 16.4],
+  [/version\/(\d+)(?:\.(\d+))?.*safari/i, (m) => Number(m[1]) + Number(m[2] || 0) / 10 >= 16.4],
+  [/firefox\/(\d+)/i, (m) => Number(m[1]) >= 90],
+  [/(?:chrome|chromium|crios|edg[ea]?|edgios)\/(\d+)/i, (m) => Number(m[1]) >= 76],
+];
+
+function claimsSecFetch(userAgent) {
+  for (const [pattern, sendsThem] of SEC_FETCH_SINCE) {
+    const match = userAgent.match(pattern);
+    if (match) return sendsThem(match);
+  }
+  return false;
+}
+
+/** Whether a request wearing a browser user agent lacks what a real browser always sends. */
+export function isFakeBrowser(request) {
+  const headers = request.headers;
+  if (!headers.get('accept-language')) return true;
+  if (headers.get('sec-fetch-mode') || headers.get('sec-fetch-dest')) return false;
+  return claimsSecFetch(headers.get('user-agent') || '');
+}
+
 const LIMITS = { path: 300, referrerUrl: 300, utm: 100, botName: 60, lang: 12, place: 80 };
 
 const cut = (value, limit) => (typeof value === 'string' ? value.slice(0, limit) : null);
@@ -206,7 +243,7 @@ export async function visitorHash(secret, day, ip, userAgent) {
 }
 
 /** Everything the row will hold, read off the request. Pure apart from the hash. */
-export async function describe(request, response, env, now = Date.now(), { probes = true } = {}) {
+export async function describe(request, response, env, now = Date.now(), { probes = true, fakeBrowsers = true } = {}) {
   const url = new URL(request.url);
   const ua = request.headers.get('user-agent') || '';
   const cf = request.cf || {};
@@ -214,7 +251,8 @@ export async function describe(request, response, env, now = Date.now(), { probe
   const day = dayOf(ts);
   const verified = cf.verifiedBotCategory || null;
   const probe = probes && isProbe(url.pathname);
-  const bot = Boolean(verified) || probe || isBot(ua);
+  const fake = fakeBrowsers && !verified && !probe && !isBot(ua) && isFakeBrowser(request);
+  const bot = Boolean(verified) || probe || isBot(ua) || fake;
   const { referrer, referrerUrl } = referrerOf(request.headers.get('referer'), url.hostname);
   const ip = request.headers.get('cf-connecting-ip') || '';
   const utm = (name) => blank(cut(url.searchParams.get(name), LIMITS.utm));
@@ -225,7 +263,7 @@ export async function describe(request, response, env, now = Date.now(), { probe
     bot,
     // A verified crawler keeps its own name wherever it goes; anything else on
     // a probe path is a scanner whatever its user agent claims.
-    botName: !bot ? null : probe && !verified ? 'scanner' : botName(ua, verified),
+    botName: !bot ? null : probe && !verified ? 'scanner' : fake ? 'fake browser' : botName(ua, verified),
     visitor: bot ? null : await visitorHash(env.ANALYTICS_PASSWORD, day, ip, ua),
     path: cut(url.pathname, LIMITS.path),
     status: response.status,

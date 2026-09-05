@@ -14,7 +14,7 @@
 export { createAnalytics } from './src/analytics.js';
 export { resolveOptions } from './src/config.js';
 export {
-  isBot, botName, isProbe, deviceOf, browserOf, osOf, languageOf, referrerOf, shouldRecord,
+  isBot, botName, isProbe, isFakeBrowser, deviceOf, browserOf, osOf, languageOf, referrerOf, shouldRecord,
   visitorHash, describe, writePageview, recordPageview, recordEvent, hmac, hex, dayOf,
 } from './src/collect.js';
 export {

@@ -1,6 +1,6 @@
 {
   "name": "worker-analytics",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "First-party traffic analytics for a Cloudflare Worker or Pages project: a collector, a report, a password-gated dashboard, the D1 schema, and an optional Google Search Console module. No dependencies.",
   "type": "module",
   "private": true,
