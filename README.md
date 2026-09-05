@@ -38,12 +38,18 @@ visitor hashes, since they are keyed on it.
 ## Install
 
 ```bash
-npm install github:ralphlazar/worker-analytics#v0.1.2
+npm install github:ralphlazar/worker-analytics#v0.1.3
 ```
 
-The repo is private; npm installs it with the machine's git credentials. If
-npm cannot read it, run `gh auth setup-git` once and retry. Pin a tag, never
-a branch, so a site only moves when someone moves it.
+The repo is public, so npm needs no credentials: for a GitHub tag it fetches
+the tarball over https, and a build machine with no git identity installs it
+the same way. Pin a tag, never a branch, so a site only moves when someone
+moves it. To move to a newer tag, change the spec and run
+`npm uninstall worker-analytics && npm install`, then check the lockfile's
+resolved commit: a plain `npm install` after a tag bump keeps the old commit
+in the lock and ships the old code.
+
+MIT licensed; see LICENSE.
 
 ## Wire it into a Worker
 
@@ -136,6 +142,56 @@ is gitignored. It goes nowhere else.
 - a curl visit lands in `bot_hits`, not in `pageviews`;
 - the site's own pages, images and redirects answer exactly as before.
 
+## Wire it into Cloudflare Pages
+
+A Pages project has no `fetch` export, but a Pages Function middleware runs on
+every request (when there is no `_routes.json`), and its `context` carries the
+`waitUntil` the recorder needs. So the same three calls hang off
+`functions/_middleware.js`:
+
+```js
+import { createAnalytics } from 'worker-analytics';
+
+const analytics = createAnalytics({ siteName: 'example.com' });
+
+export async function onRequest(context) {
+  const { request, env } = context;
+  if (analytics.matches(new URL(request.url).pathname)) return analytics.handle(request, env);
+
+  const response = await context.next();
+  analytics.recordPageview(request, response, env, context); // off the response path
+  return response;
+}
+```
+
+If that middleware already gates the site, decide where the dashboard sits:
+matching the prefix before the gate leaves it behind the package's own
+password wall alone; matching after it puts it behind both.
+
+What differs from a Worker:
+
+- **Bindings live on the Pages project**, under its Functions settings, for
+  Production and Preview: the D1 database as `ANALYTICS_DB` and the password
+  as `ANALYTICS_PASSWORD`
+  (`npx wrangler pages secret put ANALYTICS_PASSWORD --project-name <project>`
+  sets production). Do not add a wrangler config for this alone: on Pages it
+  takes every binding over from the dashboard. There is no migrations
+  directory either; apply the schema once with
+  `npx wrangler d1 execute <db> --remote --file=migrations/0001_analytics.sql`.
+- **Set a build command.** Add a `package.json` naming this package at a tag,
+  commit the lockfile, and set the project's build command to
+  `if [ -f package-lock.json ]; then npm ci; fi`. With no build command Pages
+  skips dependency installation entirely and the Functions build fails with
+  "Could not resolve worker-analytics". Once any build command exists Pages
+  installs before running it, so the explicit `npm ci` is belt and braces, and
+  the guard keeps a commit without a lockfile buildable.
+- **No `run_worker_first`.** Functions already run before static assets.
+- **Preview deployments write to the same database** as production when both
+  environments carry the binding.
+- **A site without a `404.html`** serves its index at 200 for an unknown path,
+  so such a visit is recorded under the path asked for and the broken-links
+  panel stays empty. Add a `404.html` to get real 404s.
+
 ## Options
 
 | Option | Default | What it does |
@@ -171,9 +227,11 @@ every panel shows all of its rows instead of ten.
 npm test
 ```
 
-Thirty-five tests, guards checked by tripping them: the collector never
+Thirty-six tests, guards checked by tripping them: the collector never
 writes an address, leaves crawlers and probes out of the visitor count, and
 fails silently rather than taking the page down; the report arithmetic is
 right on hand-built rows; the dashboard fails closed with no password and
 refuses a wrong one; options are validated; the served page carries the
-site's configuration safely escaped.
+site's configuration safely escaped; and the package's own hygiene holds:
+nothing site-specific, no em or en dashes, `[hidden]` first in the
+stylesheet, and a LICENSE that agrees with package.json.

@@ -543,7 +543,7 @@ test('the factory wires a site up under its own prefix and skips what it is told
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const filesIn = (dir) => readdirSync(join(ROOT, dir)).map((f) => join(dir, f)).filter((f) => statSync(join(ROOT, f)).isFile());
-const PACKAGE_FILES = ['index.js', 'package.json', 'README.md', ...filesIn('src'), ...filesIn('tests'), ...filesIn('migrations'), ...filesIn('scripts')];
+const PACKAGE_FILES = ['index.js', 'package.json', 'README.md', 'LICENSE', ...filesIn('src'), ...filesIn('tests'), ...filesIn('migrations'), ...filesIn('scripts')];
 
 test('the stylesheet keeps [hidden]{display:none!important} as its first rule', () => {
   const css = dashboardHtml.match(/<style>([\s\S]*?)<\/style>/)[1].replace(/\/\*[\s\S]*?\*\//g, '').trim();
@@ -572,6 +572,15 @@ test('no em or en dashes anywhere in the package', () => {
     assert.equal(text.includes('\u2014'), false, `${file} contains an em dash`);
     assert.equal(text.includes('\u2013'), false, `${file} contains an en dash`);
   }
+});
+
+test('the package is licensed, and LICENSE agrees with package.json', () => {
+  const license = readFileSync(join(ROOT, 'LICENSE'), 'utf8');
+  const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
+  assert.equal(pkg.license, 'MIT');
+  assert.match(license, /^MIT License\n/);
+  assert.match(license, /^Copyright \(c\) \d{4} \S/m);
+  assert.ok(pkg.files.includes('LICENSE'), 'LICENSE ships with the package');
 });
 
 let failed = 0;
