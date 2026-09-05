@@ -10,7 +10,8 @@
 // Run: npm test (which first checks the generated dashboard module is current)
 
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   isBot, botName, isProbe, deviceOf, browserOf, osOf, languageOf, referrerOf, shouldRecord,
@@ -29,7 +30,7 @@ const ANDROID = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KH
 const EDGE = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 Edg/128.0.0.0';
 const GOOGLEBOT = 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)';
 
-const page = (path, over = {}) => new Request(`https://ralphlazar.com${path}`, {
+const page = (path, over = {}) => new Request(`https://example.com${path}`, {
   method: over.method || 'GET',
   headers: {
     'user-agent': CHROME, 'cf-connecting-ip': '203.0.113.7', 'accept-language': 'en-GB,en;q=0.9',
@@ -99,23 +100,23 @@ test('reads device, browser and system off the user agent', () => {
 });
 
 test('keeps external referrers and drops its own', () => {
-  assert.deepEqual(referrerOf('https://www.ralphlazar.com/browse/', 'ralphlazar.com'), { referrer: null, referrerUrl: null });
-  assert.deepEqual(referrerOf('https://www.instagram.com/p/abc/?igsh=xyz', 'ralphlazar.com'),
+  assert.deepEqual(referrerOf('https://www.example.com/browse/', 'example.com'), { referrer: null, referrerUrl: null });
+  assert.deepEqual(referrerOf('https://www.instagram.com/p/abc/?igsh=xyz', 'example.com'),
     { referrer: 'instagram.com', referrerUrl: 'https://www.instagram.com/p/abc/' });
-  assert.deepEqual(referrerOf('not a url', 'ralphlazar.com'), { referrer: null, referrerUrl: null });
-  assert.deepEqual(referrerOf(null, 'ralphlazar.com'), { referrer: null, referrerUrl: null });
+  assert.deepEqual(referrerOf('not a url', 'example.com'), { referrer: null, referrerUrl: null });
+  assert.deepEqual(referrerOf(null, 'example.com'), { referrer: null, referrerUrl: null });
 });
 
 test('records pages and 404s, not images, APIs, redirects, prefetches or the dashboard', () => {
   const SKIP = ['/images/', '/api/', '/analytics'];
   const record = (request, response) => shouldRecord(request, response, SKIP);
-  assert.equal(record(page('/art/reconstitution/'), htmlResponse()), true);
+  assert.equal(record(page('/work/reconstitution/'), htmlResponse()), true);
   assert.equal(record(page('/nope/'), htmlResponse(404)), true, 'a broken link is worth seeing');
   assert.equal(record(page('/images/display/abc.jpg'), new Response('', { headers: { 'content-type': 'image/jpeg' } })), false);
   assert.equal(record(page('/api/contact', { method: 'POST' }), htmlResponse()), false);
   assert.equal(record(page('/analytics/'), htmlResponse()), false, 'looking at the dashboard is not a visit');
   assert.equal(record(page('/crazytown/x/'), new Response(null, { status: 301, headers: { 'content-type': 'text/html' } })), false);
-  assert.equal(record(page('/search-corpus.json'), new Response('[]', { headers: { 'content-type': 'application/json' } })), false);
+  assert.equal(record(page('/titles.json'), new Response('[]', { headers: { 'content-type': 'application/json' } })), false);
   assert.equal(record(page('/about/', { headers: { 'sec-purpose': 'prefetch' } }), htmlResponse()), false);
   assert.equal(record(page('/about/', { headers: { 'sec-fetch-dest': 'empty' } }), htmlResponse()), false);
   assert.equal(record(page('/about/', { headers: { 'sec-fetch-dest': 'document' } }), htmlResponse()), true);
@@ -134,13 +135,13 @@ test('hashes a visitor per day and never keeps the address', async () => {
 });
 
 test('describes a request fully, with the geography Cloudflare attaches', async () => {
-  const request = page('/art/reconstitution/?utm_source=newsletter&utm_campaign=sept', {
+  const request = page('/work/reconstitution/?utm_source=newsletter&utm_campaign=sept', {
     headers: { referer: 'https://t.co/abc' },
   });
   request.cf = { country: 'ZA', region: 'Western Cape', city: 'Cape Town' };
   const row = await describe(request, htmlResponse(), { ANALYTICS_PASSWORD: 's' }, Date.UTC(2026, 8, 4, 10, 0, 0));
   assert.equal(row.bot, false);
-  assert.equal(row.path, '/art/reconstitution/');
+  assert.equal(row.path, '/work/reconstitution/');
   assert.deepEqual([row.country, row.region, row.city], ['ZA', 'Western Cape', 'Cape Town']);
   assert.deepEqual([row.referrer, row.utmSource, row.utmCampaign, row.utmMedium], ['t.co', 'newsletter', 'sept', null]);
   assert.equal(row.day, '2026-09-04');
@@ -176,9 +177,9 @@ test('treats a request for a file that never existed as a scanner, not a visitor
 
   // Real pages, real broken links, and files another site might legitimately serve.
   const genuine = [
-    '/', '/about/', '/art/213-populism/', '/art/guilty-feet-have-got-no-rhythm/',
+    '/', '/about/', '/work/213-populism/', '/work/guilty-feet-have-got-no-rhythm/',
     '/wp-content/uploads/beatles-pygmy.jpg', '/wp-content/uploads/2019/03/x-1024x768.jpg',
-    '/manifest.json', '/.well-known/security.txt', '/search-corpus.json', '/version.json',
+    '/manifest.json', '/.well-known/security.txt', '/titles.json', '/version.json',
     '/feed', '/robots.txt', '/sitemap.xml',
   ];
   for (const path of genuine) assert.equal(isProbe(path), false, `${path} is not a probe`);
@@ -230,7 +231,7 @@ test('without a database everything is a no-op', async () => {
 test('an enquiry becomes an event carrying the work, not the message', async () => {
   const db = fakeDb();
   const waited = [];
-  recordEvent(page('/api/contact', { headers: { referer: 'https://ralphlazar.com/contact/?work=5' } }), { ANALYTICS_DB: db }, { waitUntil: (p) => waited.push(p) }, 'enquiry', '[5] Reconstitution');
+  recordEvent(page('/api/contact', { headers: { referer: 'https://example.com/contact/?work=5' } }), { ANALYTICS_DB: db }, { waitUntil: (p) => waited.push(p) }, 'enquiry', '[5] Reconstitution');
   await Promise.all(waited);
   assert.match(db.calls[0].sql, /INSERT INTO events/);
   assert.equal(db.calls[0].args[2], 'enquiry');
@@ -248,9 +249,9 @@ const row = (over) => ({ id: 1, ts: T0, visitor: 'a', path: '/', status: 200, re
 const ROWS = [
   row({ id: 1, ts: T0, path: '/' }),
   row({ id: 2, ts: T0 + 60, path: '/browse/' }),
-  row({ id: 3, ts: T0 + 120, path: '/art/reconstitution/' }),
+  row({ id: 3, ts: T0 + 120, path: '/work/reconstitution/' }),
   row({ id: 4, ts: T0 + 4000, path: '/about/' }),                       // same visitor, new session after the gap
-  row({ id: 5, ts: T0 + 100, visitor: 'b', path: '/art/5th-amendment/', country: 'ZA', city: 'Cape Town', region: 'Western Cape', device: 'mobile', referrer: 'instagram.com', referrer_url: 'https://instagram.com/p/x' }),
+  row({ id: 5, ts: T0 + 100, visitor: 'b', path: '/work/5th-amendment/', country: 'ZA', city: 'Cape Town', region: 'Western Cape', device: 'mobile', referrer: 'instagram.com', referrer_url: 'https://instagram.com/p/x' }),
   row({ id: 6, ts: T0 + 200, visitor: 'c', path: '/nope/', status: 404, country: 'US', city: null, region: null }),
 ];
 
@@ -259,7 +260,7 @@ test('splits pageviews into sessions on a thirty-minute gap', () => {
   assert.equal(sessions.length, 4);
   const a = sessions.filter((s) => s.visitor === 'a');
   assert.deepEqual(a.map((s) => s.pages), [3, 1]);
-  assert.deepEqual([a[0].entry, a[0].exit], ['/', '/art/reconstitution/']);
+  assert.deepEqual([a[0].entry, a[0].exit], ['/', '/work/reconstitution/']);
 });
 
 test('totals: visitors, sessions, bounces, duration, 404s', () => {
@@ -297,17 +298,17 @@ test('the week grid follows the viewer’s clock', () => {
 });
 
 test('aggregate produces every panel with visitors per key', () => {
-  const r = aggregate(ROWS, { from: T0 - 3600, to: T0 + 7200, tz: 0 }, [], { panels: [{ key: 'artworks', title: 'Artworks', prefix: '/art/' }] });
+  const r = aggregate(ROWS, { from: T0 - 3600, to: T0 + 7200, tz: 0 }, [], { panels: [{ key: 'works', title: 'Works', prefix: '/work/' }] });
   assert.equal(r.pages[0].key, '/');
   assert.equal(r.prefixPanels.length, 1);
-  assert.equal(r.prefixPanels[0].title, 'Artworks');
-  assert.deepEqual(r.prefixPanels[0].list.map((a) => a.key).sort(), ['/art/5th-amendment/', '/art/reconstitution/']);
+  assert.equal(r.prefixPanels[0].title, 'Works');
+  assert.deepEqual(r.prefixPanels[0].list.map((a) => a.key).sort(), ['/work/5th-amendment/', '/work/reconstitution/']);
   assert.deepEqual(aggregate(ROWS, { from: T0 - 3600, to: T0 + 7200, tz: 0 }).prefixPanels, [], 'no panels unless configured');
   assert.deepEqual(r.countries.map((c) => [c.key, c.views]), [['GB', 4], ['US', 1], ['ZA', 1]]);
   assert.deepEqual(r.cities.find((c) => c.name === 'Cape Town').country, 'ZA');
   assert.equal(r.cities.some((c) => c.name === 'null'), false, 'a row with no city is not a city called null');
   assert.deepEqual(r.referrers, [{ key: 'instagram.com', views: 1, visitors: 1 }]);
-  assert.deepEqual(r.entries.map((e) => e.key).sort(), ['/', '/about/', '/art/5th-amendment/', '/nope/']);
+  assert.deepEqual(r.entries.map((e) => e.key).sort(), ['/', '/about/', '/nope/', '/work/5th-amendment/']);
   assert.deepEqual(r.notFound, [{ key: '/nope/', views: 1, visitors: 1 }]);
   assert.deepEqual(r.devices.map((d) => d.key), ['desktop', 'mobile']);
 });
@@ -339,10 +340,10 @@ test('the CSV export has a header, a readable time, and quotes what needs it', a
 // --- routes ---------------------------------------------------------------
 
 const PASSWORD = 'correct-horse-battery-staple';
-const handler = createAnalyticsHandler({ siteName: 'ralphlazar.com', dashboard: '<html>DASHBOARD</html>' });
+const handler = createAnalyticsHandler({ siteName: 'example.com', dashboard: '<html>DASHBOARD</html>' });
 const env = (over = {}) => ({ ANALYTICS_PASSWORD: PASSWORD, ANALYTICS_DB: fakeDb([]), ...over });
-const get = (path, headers = {}) => new Request(`https://ralphlazar.com${path}`, { headers });
-const login = (password) => new Request('https://ralphlazar.com/analytics/login', {
+const get = (path, headers = {}) => new Request(`https://example.com${path}`, { headers });
+const login = (password) => new Request('https://example.com/analytics/login', {
   method: 'POST',
   headers: { 'content-type': 'application/x-www-form-urlencoded', 'cf-connecting-ip': `198.51.100.${Math.floor(Math.random() * 250)}` },
   body: new URLSearchParams({ password }),
@@ -398,7 +399,7 @@ test('a cookie signed under one password is worthless under another', async () =
 
 test('locks an address out after five wrong passwords', async () => {
   const ip = '198.51.100.251';
-  const attempt = () => handler(new Request('https://ralphlazar.com/analytics/login', {
+  const attempt = () => handler(new Request('https://example.com/analytics/login', {
     method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded', 'cf-connecting-ip': ip },
     body: new URLSearchParams({ password: 'wrong' }),
   }), env());
@@ -419,12 +420,12 @@ test('the right password opens the dashboard, the data and the export', async ()
   assert.equal(report.live.visitors, 3);
   const csv = await handler(get(`/analytics/export.csv?from=${T0}&to=${T0 + 86400}`, { cookie }), env({ ANALYTICS_DB: fakeDb(ROWS) }));
   assert.equal(csv.status, 200);
-  assert.match(csv.headers.get('content-disposition'), /ralphlazar-traffic-2026-09-01-to-2026-09-02\.csv/);
+  assert.match(csv.headers.get('content-disposition'), /example-traffic-2026-09-01-to-2026-09-02\.csv/);
   assert.equal((await csv.text()).trim().split('\n').length, 7);
 });
 
 test('rejects a nonsense range', () => {
-  const url = (q) => new URL(`https://ralphlazar.com/analytics/api?${q}`);
+  const url = (q) => new URL(`https://example.com/analytics/api?${q}`);
   assert.ok(parseRange(url('from=abc&to=2')).error);
   assert.ok(parseRange(url('from=5&to=2')).error);
   assert.ok(parseRange(url('from=0&to=999999999')).error, 'thirty years is not a range');
@@ -433,7 +434,7 @@ test('rejects a nonsense range', () => {
 });
 
 test('logging out clears the cookie', async () => {
-  const res = await handler(new Request('https://ralphlazar.com/analytics/logout', { method: 'POST' }), env());
+  const res = await handler(new Request('https://example.com/analytics/logout', { method: 'POST' }), env());
   assert.equal(res.status, 303);
   assert.match(res.headers.get('set-cookie'), /Max-Age=0/);
 });
@@ -466,8 +467,8 @@ test('options are checked once, loudly, and defaults are sensible', () => {
 test('the generated dashboard module matches the html it was built from', () => {
   const html = readFileSync(fileURLToPath(new URL('../src/dashboard.html', import.meta.url)), 'utf8');
   assert.equal(dashboardHtml, html, 'run `npm run build` after editing dashboard.html');
-  assert.match(html, /<style>\s*:root\{[^}]*\}\s*\*\{box-sizing:border-box\}\s*\[hidden\]\{display:none!important\}/,
-    'the [hidden] rule must stay at the top of the stylesheet or every panel shows all its rows');
+  assert.match(html, /<style>\s*\[hidden\]\{display:none!important\}/,
+    'the [hidden] rule must be the first in the stylesheet or every panel shows all its rows');
   for (const placeholder of ['__SITE_NAME__', '__PREFIX__', '__ANALYTICS_CONFIG__']) {
     assert.ok(html.includes(placeholder), `${placeholder} is where the site configuration goes`);
   }
@@ -476,7 +477,7 @@ test('the generated dashboard module matches the html it was built from', () => 
 test('the dashboard is served with the site configuration in it, safely escaped', () => {
   const config = resolveOptions({
     prefix: '/stats', launchDate: '2026-08-27', titlesUrl: '/titles.json',
-    panels: [{ title: 'Artworks', prefix: '/art/' }], events: [{ type: 'enquiry', label: 'Enquiries', description: 'sent through the form' }],
+    panels: [{ title: 'Works', prefix: '/work/' }], events: [{ type: 'enquiry', label: 'Enquiries', description: 'sent through the form' }],
   });
   const html = renderDashboard(config, '</script><b>evil</b>.example');
   assert.equal(html.includes('__SITE_NAME__') || html.includes('__PREFIX__') || html.includes('__ANALYTICS_CONFIG__'), false);
@@ -487,7 +488,7 @@ test('the dashboard is served with the site configuration in it, safely escaped'
   const client = JSON.parse(block);
   assert.equal(client.siteName, '</script><b>evil</b>.example');
   assert.deepEqual([client.prefix, client.launchDate, client.titlesUrl], ['/stats', '2026-08-27', '/titles.json']);
-  assert.deepEqual(client.panels.map((p) => p.prefix), ['/art/']);
+  assert.deepEqual(client.panels.map((p) => p.prefix), ['/work/']);
   assert.deepEqual(client.events.map((e) => e.label), ['Enquiries']);
 });
 
@@ -526,7 +527,8 @@ test('the factory wires a site up under its own prefix and skips what it is told
   visit('/analytics/');
   visit('/hello/');
   await Promise.all(waited);
-  assert.deepEqual(db.calls.map((c) => c.args[2]), ['/analytics/', '/hello/'], 'only the configured prefixes are skipped');
+  // Sorted: the two writes race each other through the daily key derivation.
+  assert.deepEqual(db.calls.map((c) => c.args[2]).sort(), ['/analytics/', '/hello/'], 'only the configured prefixes are skipped');
 
   // A probe is a scanner by default and a visitor only when a site opts out.
   const counted = fakeDb();
@@ -535,6 +537,38 @@ test('the factory wires a site up under its own prefix and skips what it is told
   quiet.recordPageview(page('/.env'), htmlResponse(404), { ANALYTICS_DB: counted, ANALYTICS_PASSWORD: 's' }, { waitUntil: (p) => waited2.push(p) });
   await Promise.all(waited2);
   assert.match(counted.calls[0].sql, /INSERT INTO pageviews/);
+});
+
+// --- the package's own hygiene ----------------------------------------------
+
+const ROOT = fileURLToPath(new URL('..', import.meta.url));
+const filesIn = (dir) => readdirSync(join(ROOT, dir)).map((f) => join(dir, f)).filter((f) => statSync(join(ROOT, f)).isFile());
+const PACKAGE_FILES = ['index.js', 'package.json', 'README.md', ...filesIn('src'), ...filesIn('tests'), ...filesIn('migrations'), ...filesIn('scripts')];
+
+test('the stylesheet keeps [hidden]{display:none!important} as its first rule', () => {
+  const css = dashboardHtml.match(/<style>([\s\S]*?)<\/style>/)[1].replace(/\/\*[\s\S]*?\*\//g, '').trim();
+  assert.ok(css.startsWith('[hidden]{display:none!important}'), `the first rule is ${css.slice(0, 40)}`);
+  assert.match(css, /\.row\{display:grid/, 'the author display rule the guard exists for is still there');
+});
+
+test('nothing site-specific remains in the package', () => {
+  // Built from halves so this file does not itself match a grep for them. The
+  // GitHub owner has to appear in the README install line and in package.json.
+  const banned = ['ralph' + 'lazar', '/ar' + 't/', 'search-' + 'corpus'];
+  for (const file of PACKAGE_FILES) {
+    const text = readFileSync(join(ROOT, file), 'utf8');
+    for (const word of banned) {
+      if (word === banned[0] && (file === 'README.md' || file === 'package.json')) continue;
+      assert.equal(text.includes(word), false, `${file} still mentions ${word}`);
+    }
+  }
+});
+
+test('no em dashes anywhere in the package', () => {
+  // Written as an escape so this file does not carry the character itself.
+  for (const file of PACKAGE_FILES) {
+    assert.equal(readFileSync(join(ROOT, file), 'utf8').includes('\u2014'), false, `${file} contains an em dash`);
+  }
 });
 
 let failed = 0;

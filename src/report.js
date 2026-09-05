@@ -202,7 +202,7 @@ export function aggregate(rows, { from, to, tz = 0 }, events = [], config = {}) 
     series: series(rows, { from, to, tz, bucket }),
     week: weekGrid(rows, tz),
     pages: top(tally(rows, (r) => r.path)),
-    // One panel per configured path prefix, e.g. every /art/ page on an
+    // One panel per configured path prefix, e.g. every /projects/ page on a
     // artist's site, so the report can single out the pages a site is about.
     prefixPanels: (config.panels || []).map((panel) => ({
       ...panel,

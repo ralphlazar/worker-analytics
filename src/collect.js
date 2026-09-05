@@ -32,7 +32,7 @@ const BOT_RE =
 // misses them, and every probe was being counted as a visitor: on 2026-09-05
 // one sweep from Frankfurt made twelve requests in one second under twelve
 // different fake browsers, and over half of all page views recorded since
-// launch of ralphlazar.com were 404s of this kind. A probe is counted as a crawler named
+// the first site's launch were 404s of this kind. A probe is counted as a crawler named
 // "scanner", per day like any other bot, and never written as a pageview, so
 // it stays out of the visitor count and out of the Broken links panel.
 //

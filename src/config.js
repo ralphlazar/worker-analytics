@@ -20,7 +20,7 @@ function fail(message) {
  *   skipPrefixes  paths never recorded, e.g. ["/images/", "/api/"]. The
  *                 dashboard prefix is always skipped.
  *   panels        extra dashboard panels, one per path prefix:
- *                 [{ title: "Artworks", prefix: "/art/" }].
+ *                 [{ title: "Projects", prefix: "/projects/" }].
  *   events        event types counted as KPIs and listed in a panel:
  *                 [{ type: "enquiry", label: "Enquiries", description: "..." }].
  *   launchDate    "YYYY-MM-DD"; the start of the dashboard's "All" range.

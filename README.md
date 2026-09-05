@@ -6,7 +6,7 @@ visitor's browser, no cookie is set, and the data is yours, in a D1 database,
 with no retention limit. A password-gated dashboard reads it back. No
 dependencies.
 
-Built for ralphlazar.com and extracted so the other Worker sites get the same
+Built for one site and extracted so the other Worker sites get the same
 thing with the same guarantees, and so a fix made once reaches all of them.
 
 ## What it records
@@ -38,7 +38,7 @@ visitor hashes, since they are keyed on it.
 ## Install
 
 ```bash
-npm install github:ralphlazar/worker-analytics#v0.1.0
+npm install github:ralphlazar/worker-analytics#v0.1.1
 ```
 
 The repo is private; npm installs it with the machine's git credentials. If

@@ -7,9 +7,10 @@
 <link rel="icon" href="data:,">
 <title>Traffic · __SITE_NAME__</title>
 <style>
+  [hidden]{display:none!important}
+  /* First on purpose: any author display rule, like .row{display:grid}, would otherwise beat the browser's own [hidden]. */
   :root{--paper:#faf8f4;--paper-dim:#f1ede4;--ink:#1c1a17;--soft:#5a544c;--faint:#8a8378;--line:#e3ddd0;--green:#3f5d45;--red:#c1272d;--bar:#d9d2c3;--accent:#1c1a17}
   *{box-sizing:border-box}
-  [hidden]{display:none!important}
   body{margin:0;background:var(--paper);color:var(--ink);font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
   a{color:inherit}
   button,input,select{font:inherit;color:inherit}
@@ -288,7 +289,7 @@
     const labelOf = (type) => { const e = CONFIG.events.find((x) => x.type === type); return e ? e.label : type; };
     const when = (e) => new Date(e.ts * 1000).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
     const body = events.length
-      ? `<div data-paged><table><thead><tr><th>When</th>${one ? '' : '<th>Type</th>'}<th>About</th><th>From page</th></tr></thead><tbody data-rows>${events.map((e, n) => `<tr${n >= PAGE ? ' hidden' : ''}><td>${when(e)}</td>${one ? '' : `<td>${esc(labelOf(e.type))}</td>`}<td>${esc(e.detail || '—')}</td><td>${esc(e.path || '')}</td></tr>`).join('')}</tbody></table>${pager(events.length)}</div>`
+      ? `<div data-paged><table><thead><tr><th>When</th>${one ? '' : '<th>Type</th>'}<th>About</th><th>From page</th></tr></thead><tbody data-rows>${events.map((e, n) => `<tr${n >= PAGE ? ' hidden' : ''}><td>${when(e)}</td>${one ? '' : `<td>${esc(labelOf(e.type))}</td>`}<td>${esc(e.detail || '')}</td><td>${esc(e.path || '')}</td></tr>`).join('')}</tbody></table>${pager(events.length)}</div>`
       : '<p class="empty">None in this period.</p>';
     return panel(one ? one.label : 'Events', body, one ? one.description : CONFIG.events.map((e) => e.label).join(', '), 'wide');
   }
