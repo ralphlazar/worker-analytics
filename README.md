@@ -42,13 +42,8 @@ npm install github:ralphlazar/worker-analytics#v0.1.0
 ```
 
 The repo is private; npm installs it with the machine's git credentials. If
-npm cannot read it, run `gh auth setup-git` once and retry.
-
-Until that repo exists the package lives at `packages/worker-analytics` in
-the ralphlazar-website repo, where the site consumes it as a local
-dependency (`"worker-analytics": "file:../packages/worker-analytics"`).
-Another project can copy the directory, or install it by path, and switch to
-the GitHub spec once the repo is up. The code is identical either way.
+npm cannot read it, run `gh auth setup-git` once and retry. Pin a tag, never
+a branch, so a site only moves when someone moves it.
 
 ## Wire it into a Worker
 
