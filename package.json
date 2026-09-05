@@ -1,0 +1,25 @@
+{
+  "name": "worker-analytics",
+  "version": "0.1.0",
+  "description": "First-party traffic analytics for a Cloudflare Worker: a collector, a report, a password-gated dashboard and the D1 schema. No dependencies.",
+  "type": "module",
+  "private": true,
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./collect": "./src/collect.js",
+    "./report": "./src/report.js",
+    "./routes": "./src/routes.js",
+    "./dashboard": "./src/dashboard.js",
+    "./migrations/0001_analytics.sql": "./migrations/0001_analytics.sql"
+  },
+  "files": ["index.js", "src", "migrations", "README.md"],
+  "scripts": {
+    "build": "node scripts/build-dashboard.mjs",
+    "pretest": "node scripts/build-dashboard.mjs --check",
+    "test": "node tests/test_analytics.mjs"
+  },
+  "engines": { "node": ">=20" },
+  "repository": { "type": "git", "url": "https://github.com/ralphlazar/worker-analytics.git" },
+  "license": "UNLICENSED"
+}
