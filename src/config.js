@@ -28,6 +28,11 @@ function fail(message) {
  *                 label pages in the dashboard.
  *   probes        whether requests for files only a scanner asks for are
  *                 counted as a crawler named "scanner". Default true.
+ *   searchConsole optional: { secret, site?, property? }. Switches on the
+ *                 Google Search Console panels. `secret` names the env var
+ *                 holding the service-account JSON; `site` is the host whose
+ *                 property to read (defaults to siteName, else the request's
+ *                 host); `property` pins one, e.g. "sc-domain:example.com".
  */
 export function resolveOptions(options = {}) {
   if (options === null || typeof options !== 'object') fail('options must be an object');
@@ -63,6 +68,20 @@ export function resolveOptions(options = {}) {
 
   const skipPrefixes = [...new Set([prefix, ...(options.skipPrefixes ?? []).map(String)])];
 
+  let searchConsole = null;
+  if (options.searchConsole) {
+    const given = options.searchConsole;
+    if (typeof given !== 'object') fail('searchConsole must be an object like { secret: "GSC_SERVICE_ACCOUNT" }');
+    if (typeof given.secret !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(given.secret)) {
+      fail('searchConsole.secret must name the env var holding the service-account JSON, e.g. "GSC_SERVICE_ACCOUNT"');
+    }
+    searchConsole = {
+      secret: given.secret,
+      site: given.site ? String(given.site) : (options.siteName ? String(options.siteName) : null),
+      property: given.property ? String(given.property) : null,
+    };
+  }
+
   return {
     siteName: options.siteName ? String(options.siteName) : '',
     prefix,
@@ -73,6 +92,7 @@ export function resolveOptions(options = {}) {
     launchDate,
     titlesUrl: options.titlesUrl ? String(options.titlesUrl) : null,
     probes: options.probes !== false,
+    searchConsole,
   };
 }
 

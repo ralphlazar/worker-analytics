@@ -22,4 +22,7 @@ export {
   loadRows, loadBots, loadEvents, loadLive, SESSION_GAP,
 } from './src/report.js';
 export { createAnalyticsHandler, parseRange, renderDashboard } from './src/routes.js';
+export {
+  createSearchConsole, parseCredentials, signJwt, fetchAccessToken, findProperty, fetchRows, upsertRows, readSync,
+} from './src/search-console.js';
 export { default as dashboardHtml } from './src/dashboard.js';

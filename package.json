@@ -1,7 +1,7 @@
 {
   "name": "worker-analytics",
-  "version": "0.1.4",
-  "description": "First-party traffic analytics for a Cloudflare Worker: a collector, a report, a password-gated dashboard and the D1 schema. No dependencies.",
+  "version": "0.2.0",
+  "description": "First-party traffic analytics for a Cloudflare Worker or Pages project: a collector, a report, a password-gated dashboard, the D1 schema, and an optional Google Search Console module. No dependencies.",
   "type": "module",
   "private": true,
   "main": "index.js",
@@ -11,13 +11,15 @@
     "./report": "./src/report.js",
     "./routes": "./src/routes.js",
     "./dashboard": "./src/dashboard.js",
-    "./migrations/0001_analytics.sql": "./migrations/0001_analytics.sql"
+    "./search-console": "./src/search-console.js",
+    "./migrations/0001_analytics.sql": "./migrations/0001_analytics.sql",
+    "./migrations/0002_search_console.sql": "./migrations/0002_search_console.sql"
   },
   "files": ["index.js", "src", "migrations", "README.md", "LICENSE"],
   "scripts": {
     "build": "node scripts/build-dashboard.mjs",
     "pretest": "node scripts/build-dashboard.mjs --check",
-    "test": "node tests/test_analytics.mjs"
+    "test": "node tests/test_analytics.mjs && node tests/test_search_console.mjs"
   },
   "engines": { "node": ">=20" },
   "repository": { "type": "git", "url": "https://github.com/ralphlazar/worker-analytics.git" },

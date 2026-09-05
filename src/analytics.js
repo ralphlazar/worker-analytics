@@ -1,7 +1,8 @@
 // The factory. One call at module load, then four things to use:
 //
 //   analytics.matches(pathname)                     is this a dashboard request
-//   analytics.handle(request, env)                  answer it
+//   analytics.handle(request, env, ctx)             answer it (ctx carries waitUntil
+//                                                   for the Search Console refresh)
 //   analytics.recordPageview(request, response, env, ctx)   after each response
 //   analytics.recordEvent(request, env, ctx, type, detail)  something a visitor did
 

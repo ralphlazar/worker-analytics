@@ -173,7 +173,7 @@ export async function upsertRows(db, dimension, rows) {
 
 /** The sync state as an object: property, last_refresh, last_attempt, lock, backfill_next, backfill_until, backfill_done, last_error. */
 export async function readSync(db) {
-  const { results } = await db.prepare('SELECT key, value FROM search_sync').all();
+  const { results } = await db.prepare('SELECT key, value FROM search_sync').bind().all();
   return Object.fromEntries(results.map((r) => [r.key, r.value]));
 }
 

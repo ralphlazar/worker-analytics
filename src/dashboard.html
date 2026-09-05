@@ -49,6 +49,8 @@
   .row .n{font-variant-numeric:tabular-nums;color:var(--ink);z-index:1;min-width:2.5rem;text-align:right}
   .row .m{font-variant-numeric:tabular-nums;color:var(--faint);z-index:1;min-width:2.5rem;text-align:right;font-size:12px}
   .head{display:grid;grid-template-columns:1fr auto auto;gap:.75rem;font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em;padding:0 .4rem .3rem}
+  .row.four,.head.four{grid-template-columns:1fr auto auto auto}
+  .row.four .m,.head.four span:nth-child(n+3){min-width:4.5rem}
   [data-paged]{display:flex;flex-direction:column}
   .pager{display:flex;align-items:center;justify-content:flex-end;gap:.5rem;margin-top:auto;padding-top:.6rem;font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums}
   .pager button{background:#fff;border:1px solid var(--line);border-radius:4px;width:1.7rem;height:1.7rem;padding:0;cursor:pointer;color:var(--soft);font-size:16px;line-height:1}
@@ -287,11 +289,35 @@
     if (!CONFIG.events.length) return '';
     const one = CONFIG.events.length === 1 ? CONFIG.events[0] : null;
     const labelOf = (type) => { const e = CONFIG.events.find((x) => x.type === type); return e ? e.label : type; };
-    const when = (e) => new Date(e.ts * 1000).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
     const body = events.length
-      ? `<div data-paged><table><thead><tr><th>When</th>${one ? '' : '<th>Type</th>'}<th>About</th><th>From page</th></tr></thead><tbody data-rows>${events.map((e, n) => `<tr${n >= PAGE ? ' hidden' : ''}><td>${when(e)}</td>${one ? '' : `<td>${esc(labelOf(e.type))}</td>`}<td>${esc(e.detail || '')}</td><td>${esc(e.path || '')}</td></tr>`).join('')}</tbody></table>${pager(events.length)}</div>`
+      ? `<div data-paged><table><thead><tr><th>When</th>${one ? '' : '<th>Type</th>'}<th>About</th><th>From page</th></tr></thead><tbody data-rows>${events.map((e, n) => `<tr${n >= PAGE ? ' hidden' : ''}><td>${when(e.ts)}</td>${one ? '' : `<td>${esc(labelOf(e.type))}</td>`}<td>${esc(e.detail || '')}</td><td>${esc(e.path || '')}</td></tr>`).join('')}</tbody></table>${pager(events.length)}</div>`
       : '<p class="empty">None in this period.</p>';
     return panel(one ? one.label : 'Events', body, one ? one.description : CONFIG.events.map((e) => e.label).join(', '), 'wide');
+  }
+
+  const when = (ts) => new Date(ts * 1000).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
+
+  // Google Search Console, when a site has switched it on (search-console.js):
+  // what people typed into Google and where they landed, ten rows a panel like
+  // the rest. Absent secret or a Google error: one panel saying so, and
+  // nothing else on the page is affected.
+  function searchList(items, kind) {
+    if (!items.length) return '<p class="empty">Nothing yet.</p>';
+    const max = Math.max(1, ...items.map((i) => i.clicks));
+    const rows = items.map((i, n) => `<li class="row four"${n >= PAGE ? ' hidden' : ''}><span class="bar" style="width:${(i.clicks / max * 100).toFixed(1)}%"></span><span class="k" title="${esc(i.key)}">${label(i, kind)}</span><span class="n">${fmtN(i.clicks)}</span><span class="m">${fmtN(i.impressions)}</span><span class="m">${i.position ? Number(i.position).toFixed(1) : ''}</span></li>`).join('');
+    return `<div data-paged><div class="head four"><span></span><span>clicks</span><span>impressions</span><span>position</span></div><ul class="list" data-rows>${rows}</ul>${pager(items.length)}</div>`;
+  }
+
+  function searchPanels(s) {
+    if (!s) return '';
+    const note = '<p class="note">From Google Search Console. Final figures arrive two to three days late and rare searches are withheld.</p>';
+    if (!s.queries.length && !s.pages.length && s.status !== 'ok') {
+      const body = s.status === 'not-connected' ? 'Not connected' : `Not available: ${esc(s.message)}`;
+      return `<div class="grid">${panel('Google searches', `<p class="empty" title="${esc(s.message || '')}">${body}</p>`)}</div>${note}`;
+    }
+    const sub = s.status === 'error' ? `last refresh failed: ${esc(s.message)}`
+      : `${fmtN(s.totals.clicks)} clicks, ${fmtN(s.totals.impressions)} impressions${s.backfilling ? ', older months still loading' : ''}${s.lastRefresh ? `, refreshed ${when(s.lastRefresh)}` : ''}`;
+    return `<div class="grid">${panel('Google searches', searchList(s.queries, 'text'), sub)}${panel('Search landing pages', searchList(s.pages, 'url'), 'where Google sent people')}</div>${note}`;
   }
 
   function render(r) {
@@ -326,6 +352,7 @@
         ${panel('Crawlers', list(r.bots.list.map((b) => ({ key: b.name, views: b.hits })), 'text', 'hits', ''), `${fmtN(r.bots.total)} hits, not counted above`)}
         ${eventsPanel(r.events)}
       </div>
+      ${searchPanels(r.search)}
       <p class="note">Counted by the site's own server as pages are served, so nothing runs in visitors' browsers and no cookies are set. A visitor is one person on one day: the same person on two days counts twice. Sessions end after 30 minutes of quiet. Crawlers are counted separately and never appear as visitors. Location comes from the network address and is accurate to roughly city level. Times are shown in your own time zone.</p>`;
 
     main.querySelectorAll('[data-paged]').forEach((box) => {

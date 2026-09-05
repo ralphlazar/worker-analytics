@@ -4,8 +4,10 @@
 //   GET  /analytics/            the dashboard, or the login page
 //   POST /analytics/login       password in, session cookie out
 //   POST /analytics/logout
-//   GET  /analytics/api         the report as JSON (?from=&to=&tz=)
-//   GET  /analytics/api/live    just who is on the site now
+//   GET  /analytics/api         the report as JSON (?from=&to=&tz=); with the
+//                               searchConsole option it carries `search` too and
+//                               schedules a refresh of it inside ctx.waitUntil
+//   GET  /analytics/api/live    just who is on the site now (also nudges that refresh)
 //   GET  /analytics/export.csv  the raw rows for a range
 //
 // The cookie is an expiry and an HMAC of it under ANALYTICS_PASSWORD, so a
@@ -20,6 +22,7 @@
 import { hmac, hex } from './collect.js';
 import { buildReport, buildCsv, loadLive, SESSION_GAP } from './report.js';
 import { resolveOptions, slug } from './config.js';
+import { createSearchConsole } from './search-console.js';
 import dashboardHtml from './dashboard.js';
 
 const SESSION_SECONDS = 30 * 24 * 3600;
@@ -139,6 +142,9 @@ export function createAnalyticsHandler(options = {}) {
   const PREFIX = config.prefix;
   const COOKIE = config.cookieName;
   const template = options.dashboard ?? dashboardHtml;
+  // The optional Google Search Console panels. `options.fetch` lets tests
+  // stand in for Google; production uses the platform fetch.
+  const search = config.searchConsole ? createSearchConsole(config.searchConsole, { fetch: options.fetch }) : null;
   // Rendered once per site name (usually one), not once per request.
   const rendered = new Map();
   const dashboardFor = (site) => {
@@ -146,7 +152,7 @@ export function createAnalyticsHandler(options = {}) {
     return rendered.get(site);
   };
 
-  return async function handleAnalytics(request, env) {
+  return async function handleAnalytics(request, env, ctx) {
     const url = new URL(request.url);
     const route = url.pathname.replace(/\/+$/, '');
     const now = Math.floor(Date.now() / 1000);
@@ -194,6 +200,11 @@ export function createAnalyticsHandler(options = {}) {
     if (!authed) return json(401, { ok: false, error: 'Unauthorized.' });
     if (request.method !== 'GET') return new Response('Method not allowed', { status: 405 });
 
+    // The dashboard polls /api/live every minute while it is open, which is
+    // what brings the next backfill chunk in; a due refresh runs off the
+    // response path and a refresh that is not due costs one small read.
+    if (search) search.maybeRefresh(env, ctx, { now, host: url.hostname });
+
     if (route === `${PREFIX}/api/live`) {
       return json(200, await loadLive(env.ANALYTICS_DB, now - SESSION_GAP));
     }
@@ -201,7 +212,11 @@ export function createAnalyticsHandler(options = {}) {
     if (route === `${PREFIX}/api` || route === `${PREFIX}/export.csv`) {
       const range = parseRange(url, now);
       if (range.error) return json(400, { ok: false, error: range.error });
-      if (route === `${PREFIX}/api`) return json(200, await buildReport(env.ANALYTICS_DB, range, config));
+      if (route === `${PREFIX}/api`) {
+        const report = await buildReport(env.ANALYTICS_DB, range, config);
+        if (search) report.search = await search.report(env, range);
+        return json(200, report);
+      }
       const name = `${slug(site.split('.')[0])}-traffic-${new Date(range.from * 1000).toISOString().slice(0, 10)}-to-${new Date(range.to * 1000).toISOString().slice(0, 10)}.csv`;
       return new Response(await buildCsv(env.ANALYTICS_DB, range), {
         headers: { 'content-type': 'text/csv; charset=utf-8', 'content-disposition': `attachment; filename="${name}"`, ...NO_STORE },
