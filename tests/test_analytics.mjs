@@ -172,6 +172,13 @@ test('treats a request for a file that never existed as a scanner, not a visitor
     '/wp-content/uploads/2024/index.php', '/wp-content/themes/', '/wp-content/',
     '/wp-includes/wlwmanifest.xml', '/wp2/wp-includes/wlwmanifest.xml',
     '/wp/wp-admin/includes/', '/wp-json/acf/v3/options/a', '/wp-sitemap-users-1.xml',
+    // Seen slipping through on 2026-09-05, after the first day of the rule.
+    '/.env~', '/.env_copy', '/.env1', '/.env2', '/.environment', '/_environment',
+    '/webroot/index.php/_environment', '/phpinfo.php~', '/phpinfo.php.bak', '/phpinfo.php.save',
+    '/info.php.old', '/index.asp', '/cgi-bin/', '/cgi-bin/test.cgi', '/readme.html',
+    '/composer.json', '/package.json', '/yarn.lock', '/Dockerfile', '/docker-compose.yml',
+    '/.htaccess', '/.htpasswd', '/.DS_Store', '/.vscode/sftp.json', '/.idea/workspace.xml',
+    '/karma.conf.json', '/.gitlab-ci.yml', '/wp-content/uploads/x.php.bak',
   ];
   for (const path of probes) assert.equal(isProbe(path), true, `${path} should be a probe`);
 
@@ -180,7 +187,10 @@ test('treats a request for a file that never existed as a scanner, not a visitor
     '/', '/about/', '/work/213-populism/', '/work/guilty-feet-have-got-no-rhythm/',
     '/wp-content/uploads/beatles-pygmy.jpg', '/wp-content/uploads/2019/03/x-1024x768.jpg',
     '/manifest.json', '/.well-known/security.txt', '/titles.json', '/version.json',
-    '/feed', '/robots.txt', '/sitemap.xml',
+    '/feed', '/feed/atom/', '/robots.txt', '/sitemap.xml',
+    // Automated but not scanners, or too generic for a rule every site shares.
+    '/ip', '/date-enquiry/', '/.well-known/traffic-advice', '/admin/', '/home', '/info',
+    '/environment/',
   ];
   for (const path of genuine) assert.equal(isProbe(path), false, `${path} is not a probe`);
 

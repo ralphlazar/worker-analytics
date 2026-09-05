@@ -40,11 +40,19 @@ const BOT_RE =
 // probes: on a site migrated off WordPress those are people following a link
 // from somewhere, which is exactly what the Broken links panel exists to show. The families are matched by
 // path segment rather than by whole path because the sweeps try them at every
-// depth (/config/.env, /wp2/wp-includes/, /dist/.vite/manifest.json).
+// depth (/config/.env, /wp2/wp-includes/, /dist/.vite/manifest.json). Widened
+// 2026-09-05 from what a day of production showed slipping through: .env with any
+// suffix (.env~, .env_copy, .env1), backup copies of PHP files, scripts mid-path,
+// _environment, cgi-bin, editor and CI directories, and the config and lock files
+// a leaked-repository sweep asks for.
 const PROBE_SEGMENT_RE =
-  /^(?:\.env(?:\..*)?|\.git|\.svn|\.hg|\.ssh|\.aws|\.docker|\.vite|\.astro|wp-admin|wp-includes|wp-json|_profiler)$/i;
+  /^(?:\.env|\.git|\.svn|\.hg|\.ssh|\.aws|\.docker|\.vite|\.astro|\.vscode|\.idea|_environment|cgi-bin|wp-admin|wp-includes|wp-json|_profiler)/i;
+// Server-side script files, with the backup copies scanners look for beside them
+// (phpinfo.php.bak, index.php~, config.php.save), at any depth: a site on a Worker
+// has none, and /index.php/_environment hides the script mid-path.
+const PROBE_SCRIPT_RE = /\.(?:php\d?|phtml|asp|aspx|jsp|jspx|cgi)(?:$|[.~])/i;
 const PROBE_FILE_RE =
-  /^(?:id_rsa|id_dsa|id_ecdsa|id_ed25519|private\.key|config\.json|config\.ya?ml|credentials(?:\.ya?ml|\.json)?|appsettings\.json|settings\.py|application\.properties|web\.config|phpinfo|wlwmanifest\.xml|wp-sitemap-users-\d+\.xml)$/i;
+  /^(?:id_rsa|id_dsa|id_ecdsa|id_ed25519|private\.key|config\.json|config\.ya?ml|credentials(?:\.ya?ml|\.json)?|appsettings\.json|settings\.py|application\.properties|web\.config|phpinfo|wlwmanifest\.xml|wp-sitemap-users-\d+\.xml|readme\.html|composer\.(?:json|lock)|package\.json|package-lock\.json|yarn\.lock|pnpm-lock\.yaml|karma\.conf\.json|phpunit\.xml|sftp-config\.json|Dockerfile|docker-compose\.ya?ml|\.htaccess|\.htpasswd|\.ftpconfig|\.DS_Store|\.gitlab-ci\.yml|\.travis\.yml)$/i;
 
 /** Whether a path is one only a scanner would ask for. */
 export function isProbe(pathname) {
@@ -57,7 +65,8 @@ export function isProbe(pathname) {
   const segments = path.split('/').filter(Boolean);
   if (!segments.length) return false;
   const last = segments[segments.length - 1];
-  if (/\.php$/i.test(last) || PROBE_FILE_RE.test(last)) return true;
+  if (PROBE_FILE_RE.test(last)) return true;
+  if (segments.some((segment) => PROBE_SCRIPT_RE.test(segment))) return true;
   if (/^manifest\.json$/i.test(last) && segments.some((s) => /^(?:build|dist)$/i.test(s))) return true;
   return segments.some((segment, i) => {
     if (PROBE_SEGMENT_RE.test(segment)) return true;
