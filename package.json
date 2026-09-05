@@ -1,6 +1,6 @@
 {
   "name": "worker-analytics",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "First-party traffic analytics for a Cloudflare Worker: a collector, a report, a password-gated dashboard and the D1 schema. No dependencies.",
   "type": "module",
   "private": true,

@@ -94,7 +94,7 @@
     <button data-range="90d">90 days</button>
     <button data-range="12m">12 months</button>
     <button data-range="all">All</button>
-    <span class="custom"><input type="date" id="from" aria-label="From"> <span>–</span> <input type="date" id="to" aria-label="To"> <button id="apply">Apply</button></span>
+    <span class="custom"><input type="date" id="from" aria-label="From"> <span>-</span> <input type="date" id="to" aria-label="To"> <button id="apply">Apply</button></span>
   </nav>
   <a class="export" id="export" href="#" download>Export CSV</a>
   <form method="post" action="__PREFIX__/logout"><button type="submit">Log out</button></form>
@@ -235,7 +235,7 @@
   // arrows at all.
   const PAGE = 10;
   const pager = (count) => (count > PAGE
-    ? `<nav class="pager" aria-label="Further rows"><button type="button" data-prev aria-label="Previous ${PAGE}" disabled>‹</button><span data-pos>1–${PAGE} of ${fmtN(count)}</span><button type="button" data-next aria-label="Next ${PAGE}">›</button></nav>`
+    ? `<nav class="pager" aria-label="Further rows"><button type="button" data-prev aria-label="Previous ${PAGE}" disabled>‹</button><span data-pos>1-${PAGE} of ${fmtN(count)}</span><button type="button" data-next aria-label="Next ${PAGE}">›</button></nav>`
     : '');
 
   function list(items, kind, unit = 'views', second = 'visitors') {
@@ -341,7 +341,7 @@
         const start = page * PAGE;
         const end = Math.min(rows.length, start + PAGE);
         rows.forEach((row, i) => { row.hidden = i < start || i >= end; });
-        pos.textContent = `${fmtN(start + 1)}–${fmtN(end)} of ${fmtN(rows.length)}`;
+        pos.textContent = `${fmtN(start + 1)}-${fmtN(end)} of ${fmtN(rows.length)}`;
         prev.disabled = page === 0;
         next.disabled = page === last;
         // A full page pins the panel's height, so a shorter last page leaves

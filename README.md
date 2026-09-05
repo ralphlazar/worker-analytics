@@ -38,7 +38,7 @@ visitor hashes, since they are keyed on it.
 ## Install
 
 ```bash
-npm install github:ralphlazar/worker-analytics#v0.1.1
+npm install github:ralphlazar/worker-analytics#v0.1.2
 ```
 
 The repo is private; npm installs it with the machine's git credentials. If
@@ -171,7 +171,7 @@ every panel shows all of its rows instead of ten.
 npm test
 ```
 
-Thirty-two tests, guards checked by tripping them: the collector never
+Thirty-five tests, guards checked by tripping them: the collector never
 writes an address, leaves crawlers and probes out of the visitor count, and
 fails silently rather than taking the page down; the report arithmetic is
 right on hand-built rows; the dashboard fails closed with no password and

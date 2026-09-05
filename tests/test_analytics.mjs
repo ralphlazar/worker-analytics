@@ -564,10 +564,13 @@ test('nothing site-specific remains in the package', () => {
   }
 });
 
-test('no em dashes anywhere in the package', () => {
-  // Written as an escape so this file does not carry the character itself.
+test('no em or en dashes anywhere in the package', () => {
+  // Written as escapes so this file does not carry the characters itself. A
+  // consumer's verifier may reject either, and a hyphen offends nobody.
   for (const file of PACKAGE_FILES) {
-    assert.equal(readFileSync(join(ROOT, file), 'utf8').includes('\u2014'), false, `${file} contains an em dash`);
+    const text = readFileSync(join(ROOT, file), 'utf8');
+    assert.equal(text.includes('\u2014'), false, `${file} contains an em dash`);
+    assert.equal(text.includes('\u2013'), false, `${file} contains an en dash`);
   }
 });
 
