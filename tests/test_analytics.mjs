@@ -259,6 +259,20 @@ test('a browser user agent with no browser behind it is a fake browser, not a vi
   assert.equal(resolveOptions({ fakeBrowsers: false }).fakeBrowsers, false);
 });
 
+test('files a pageview under the path canonicalPath names', async () => {
+  const at = (u) => new Request(u, { headers: { 'user-agent': CHROME } });
+  const byId = (url) => (url.pathname === '/item' && url.searchParams.get('id') ? `/items/${url.searchParams.get('id')}` : null);
+  assert.equal((await describe(at('https://example.com/item?id=7'), htmlResponse(), {}, Date.now(), { canonicalPath: byId })).path, '/items/7');
+  // No answer, a non-path answer or a throw keeps the pathname: a mistake costs a label, never the row.
+  assert.equal((await describe(at('https://example.com/item'), htmlResponse(), {}, Date.now(), { canonicalPath: byId })).path, '/item');
+  assert.equal((await describe(at('https://example.com/a?id=1'), htmlResponse(), {}, Date.now(), { canonicalPath: () => 'items/1' })).path, '/a');
+  assert.equal((await describe(at('https://example.com/a?id=1'), htmlResponse(), {}, Date.now(), { canonicalPath: () => { throw new Error('x'); } })).path, '/a');
+  // Without the option the query never reaches the row.
+  assert.equal((await describe(at('https://example.com/item?id=7'), htmlResponse(), {})).path, '/item');
+  assert.equal(resolveOptions({ canonicalPath: byId }).canonicalPath, byId);
+  assert.throws(() => resolveOptions({ canonicalPath: '/items' }), /canonicalPath must be a function/);
+});
+
 test('writes a person as one pageview row', async () => {
   const db = fakeDb();
   await writePageview(page('/about/'), htmlResponse(), { ANALYTICS_DB: db, ANALYTICS_PASSWORD: 's' });

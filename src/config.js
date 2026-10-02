@@ -28,6 +28,8 @@ function fail(message) {
  *                 label pages in the dashboard.
  *   probes        whether requests for files only a scanner asks for are
  *                 counted as a crawler named "scanner". Default true.
+ *   canonicalPath optional (url) => path naming the path a pageview is filed
+ *                 under, for pages told apart by their query
  *   fakeBrowsers  whether a browser user agent that sends none of what a
  *                 browser sends (Accept-Language, the Sec-Fetch headers) is
  *                 counted as a crawler named "fake browser". Default true.
@@ -71,6 +73,10 @@ export function resolveOptions(options = {}) {
 
   const skipPrefixes = [...new Set([prefix, ...(options.skipPrefixes ?? []).map(String)])];
 
+  if (options.canonicalPath != null && typeof options.canonicalPath !== 'function') {
+    fail('canonicalPath must be a function (url) => path');
+  }
+
   let searchConsole = null;
   if (options.searchConsole) {
     const given = options.searchConsole;
@@ -96,6 +102,7 @@ export function resolveOptions(options = {}) {
     titlesUrl: options.titlesUrl ? String(options.titlesUrl) : null,
     probes: options.probes !== false,
     fakeBrowsers: options.fakeBrowsers !== false,
+    canonicalPath: options.canonicalPath ?? null,
     searchConsole,
   };
 }

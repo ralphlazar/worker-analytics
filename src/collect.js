@@ -242,8 +242,25 @@ export async function visitorHash(secret, day, ip, userAgent) {
   return hex(digest).slice(0, 16);
 }
 
+/**
+ * The path a pageview is filed under. The site may name one page by its query
+ * (`/item?id=7`), which the plain pathname would fold into a single row; a
+ * `canonicalPath(url)` option returns the path to file it under instead. A
+ * hook that throws or returns nothing leaves the pathname, so a mistake there
+ * costs a label, never the pageview.
+ */
+export function pathOf(url, canonicalPath) {
+  if (typeof canonicalPath !== 'function') return url.pathname;
+  try {
+    const path = canonicalPath(url);
+    return typeof path === 'string' && path.startsWith('/') ? path : url.pathname;
+  } catch {
+    return url.pathname;
+  }
+}
+
 /** Everything the row will hold, read off the request. Pure apart from the hash. */
-export async function describe(request, response, env, now = Date.now(), { probes = true, fakeBrowsers = true } = {}) {
+export async function describe(request, response, env, now = Date.now(), { probes = true, fakeBrowsers = true, canonicalPath = null } = {}) {
   const url = new URL(request.url);
   const ua = request.headers.get('user-agent') || '';
   const cf = request.cf || {};
@@ -265,7 +282,7 @@ export async function describe(request, response, env, now = Date.now(), { probe
     // a probe path is a scanner whatever its user agent claims.
     botName: !bot ? null : probe && !verified ? 'scanner' : fake ? 'fake browser' : botName(ua, verified),
     visitor: bot ? null : await visitorHash(env.ANALYTICS_PASSWORD, day, ip, ua),
-    path: cut(url.pathname, LIMITS.path),
+    path: cut(pathOf(url, canonicalPath), LIMITS.path),
     status: response.status,
     referrer,
     referrerUrl,

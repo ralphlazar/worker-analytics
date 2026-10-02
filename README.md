@@ -48,7 +48,7 @@ visitor hashes, since they are keyed on it.
 ## Install
 
 ```bash
-npm install github:ralphlazar/worker-analytics#v0.2.1
+npm install github:ralphlazar/worker-analytics#v0.3.0
 ```
 
 The repo is public, so npm needs no credentials: for a GitHub tag it fetches
@@ -250,6 +250,7 @@ What differs from a Worker:
 | `titlesUrl` | none | URL of a JSON array of `{ href, title }` used to label pages |
 | `probes` | `true` | Count scanner probes as a crawler named `scanner` |
 | `fakeBrowsers` | `true` | Count a browser user agent that sends none of what a browser sends as a crawler named `fake browser` |
+| `canonicalPath` | none | `(url) => path`: the path a pageview is filed under, for pages told apart by their query (`/item?id=7` → `/items/7`); anything but a path starting `/`, or a throw, keeps the pathname |
 | `searchConsole` | off | `{ secret, site?, property? }`: the Google searches panels, see below |
 
 Options are checked once at startup and a mistake throws, so a bad
