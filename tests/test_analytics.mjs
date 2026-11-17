@@ -614,7 +614,7 @@ test('the factory wires a site up under its own prefix and skips what it is told
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const filesIn = (dir) => readdirSync(join(ROOT, dir)).map((f) => join(dir, f)).filter((f) => statSync(join(ROOT, f)).isFile());
-const PACKAGE_FILES = ['index.js', 'package.json', 'README.md', 'LICENSE', ...filesIn('src'), ...filesIn('tests'), ...filesIn('migrations'), ...filesIn('scripts')];
+const PACKAGE_FILES = ['index.js', 'package.json', 'README.md', 'LICENSE', ...filesIn('src'), ...filesIn('tests'), ...filesIn('migrations'), ...filesIn('scripts'), ...filesIn('worker')];
 
 test('the stylesheet keeps [hidden]{display:none!important} as its first rule', () => {
   const css = dashboardHtml.match(/<style>([\s\S]*?)<\/style>/)[1].replace(/\/\*[\s\S]*?\*\//g, '').trim();

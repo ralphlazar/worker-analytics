@@ -12,14 +12,16 @@
     "./routes": "./src/routes.js",
     "./dashboard": "./src/dashboard.js",
     "./search-console": "./src/search-console.js",
+    "./rollup": "./src/rollup.js",
     "./migrations/0001_analytics.sql": "./migrations/0001_analytics.sql",
-    "./migrations/0002_search_console.sql": "./migrations/0002_search_console.sql"
+    "./migrations/0002_search_console.sql": "./migrations/0002_search_console.sql",
+    "./migrations/0003_daily_summaries.sql": "./migrations/0003_daily_summaries.sql"
   },
-  "files": ["index.js", "src", "migrations", "README.md", "LICENSE"],
+  "files": ["index.js", "src", "migrations", "worker", "README.md", "LICENSE"],
   "scripts": {
     "build": "node scripts/build-dashboard.mjs",
     "pretest": "node scripts/build-dashboard.mjs --check",
-    "test": "node tests/test_analytics.mjs && node tests/test_search_console.mjs"
+    "test": "node tests/test_analytics.mjs && node tests/test_search_console.mjs && node tests/test_rollup.mjs"
   },
   "engines": { "node": ">=20" },
   "repository": { "type": "git", "url": "https://github.com/ralphlazar/worker-analytics.git" },

@@ -25,4 +25,8 @@ export { createAnalyticsHandler, parseRange, renderDashboard } from './src/route
 export {
   createSearchConsole, parseCredentials, signJwt, fetchAccessToken, findProperty, fetchRows, upsertRows, readSync,
 } from './src/search-console.js';
+export {
+  runRollup, problemsOf, summariseDay, visitsOf, looksHuman, loadDay, writeDay, windowsFor, startOfDay,
+  RETENTION_DAYS, SETTLE_SECONDS, MAX_DAYS_PER_RUN, QUERY_BUDGET, FILTER, KINDS,
+} from './src/rollup.js';
 export { default as dashboardHtml } from './src/dashboard.js';
