@@ -369,10 +369,9 @@ read more than one page or arrived by a link (a referrer or a utm tag on its
 first view) and did not read at a page a second (its median gap between views
 is not under 2 seconds). That is the rule the first site's sections page
 applies, and the tests check it against a transcription of that code on random
-days. Each summary row carries
-`filter_version`; a day is summarised once and never rewritten, so tuning the
-rule later does not change history, and a test pins the rule's constants so it
-cannot be tuned without bumping the version.
+days. Each summary row carries `filter_version`; a day is summarised once and
+never rewritten, so tuning the rule later does not change history, and a test
+pins the rule's constants so it cannot be tuned without bumping the version.
 
 A cron that fires twice, a manual re-run or two runs at once cannot double a
 count: the day's `daily_totals` row is the claim on the day, the first
@@ -458,12 +457,12 @@ is 0, then compare `daily_totals` with the rows you exported.
 
 A Cron Trigger on the Workers Free plan gets 10 ms of CPU and 50 D1 queries per
 run; on the Paid plan up to 15 minutes of CPU for a daily schedule and 1,000
-queries. A `db.batch()` counts as one query. The job stays inside 50 queries, but not
-inside 10 ms: on Node 24, summarising a 2,500-row day took about 12 ms from a
-cold start (5 ms warm), and a 10,000-row day about 35 ms. So on the Free plan a
-run is killed for CPU, leaves nothing half written, deletes nothing and tries
-again the next night, which is safe and does not keep the limit. The Paid plan
-is what makes this job work.
+queries. A `db.batch()` counts as one query. The job stays inside 50 queries,
+but not inside 10 ms: on Node 24, summarising a 2,500-row day took about 12 ms
+from a cold start (5 ms warm), and a 10,000-row day about 35 ms. So on the Free
+plan a run is killed for CPU, leaves nothing half written, deletes nothing and
+tries again the next night, which is safe and does not keep the limit. The Paid
+plan is what makes this job work.
 
 ## Tests
 
