@@ -3,7 +3,8 @@
 First-party traffic analytics for a Cloudflare Worker or Pages project. The
 server already runs on every request, so it writes down what it serves:
 nothing runs in the visitor's browser, no cookie is set, and the data is
-yours, in a D1 database, with no retention limit. A password-gated dashboard
+yours, in a D1 database, with no retention limit unless you add the daily rollup (see
+"Retention"). A password-gated dashboard
 reads it back. Optionally, the words people typed into Google to reach the
 site, from Search Console (see "Google searches"). No dependencies.
 
@@ -338,13 +339,139 @@ One rule in the stylesheet is load-bearing: `[hidden]{display:none!important}`
 stays first. Any author `display` rule otherwise beats the attribute, and
 every panel shows all of its rows instead of ten.
 
+## Retention: the daily rollup
+
+Left alone, the `pageviews` table grows for ever. A site that wants a limit
+runs a second, tiny Worker (`worker/`) once a day. It does two things, in this
+order, and all of the work and every guard on it is in `src/rollup.js`:
+
+1. **Rolls up** each finished UTC day into three summary tables
+   (`migrations/0003_daily_summaries.sql`): `daily_pages` (one row per page per
+   day), `daily_totals` (one row per day for the whole site, with its 24 hourly
+   counts for the weekday heat map) and `daily_breakdown` (the day's countries,
+   devices and browsers for the site as a whole, never per page). Nothing in
+   them points at a reader: no visitor label, city, region, language, system
+   or referrer, and the schema refuses any other kind of breakdown.
+2. **Deletes** pageview rows past `RETENTION_DAYS` (90, in one place, in
+   `src/rollup.js`; change your published notice before you change it). The
+   last 90 UTC days are kept, today included, so a row goes in the early hours
+   of its 91st day. A day's rows are deleted only if its summary exists and
+   counts every one of them, and the DELETE statement checks that itself.
+
+**Every count is stored twice**, once for everything the site served and once
+(the `_human` column beside it) for the visits that look human. A site that
+crawlers have found is mostly crawlers, and a crawler sending a real browser
+user agent passes the collector's bot test, so summaries of "everything" alone
+would keep a permanent chart of robots and lose the few real readers when the
+raw rows go. A visit is one visitor's views on one day, split on half an hour
+of silence (`SESSION_GAP`, imported from `src/report.js`). It looks human if it
+read more than one page or arrived by a link (a referrer or a utm tag on its
+first view) and did not read at a page a second (its median gap between views
+is not under 2 seconds). That is the rule the first site's sections page
+applies, and the tests check it against a transcription of that code on random
+days. Each summary row carries
+`filter_version`; a day is summarised once and never rewritten, so tuning the
+rule later does not change history, and a test pins the rule's constants so it
+cannot be tuned without bumping the version.
+
+A cron that fires twice, a manual re-run or two runs at once cannot double a
+count: the day's `daily_totals` row is the claim on the day, the first
+statement of the one batch that writes it, and a second claim fails and rolls
+the batch back. A run does at most 10 days, oldest first, so a backlog clears
+over a few nights and nothing is deleted before its summary exists. `events`,
+`bot_hits` and the Search Console tables are left alone.
+
+### Setting it up
+
+Once, in your own Cloudflare account. Installing the package does none of it.
+Read "Plan limits" below first. `<project>-analytics` is the D1 database the
+site already writes its pageviews to.
+
+1. In a checkout of this repository, copy the template and change the three
+   lines marked `CHANGE` (the Worker's `name`, one per site, and the database's
+   `database_name` and `database_id`, which `npx wrangler d1 list` shows).
+   The copy is gitignored, so the ids stay out of the package:
+
+   ```bash
+   cp worker/wrangler.jsonc worker/wrangler.local.jsonc
+   ```
+
+2. **Add the three summary tables** to the live database. This adds empty
+   tables and changes nothing else:
+
+   ```bash
+   npx wrangler d1 migrations apply <project>-analytics --remote --config worker/wrangler.local.jsonc
+   ```
+
+   (If the site applied its first two migrations with `d1 execute --file`
+   instead, apply this one the same way.) The site's own `migrations/` folder
+   should get a copy of `0003_daily_summaries.sql` too, as for the first two.
+
+3. **Create the Worker, bind the database and set the daily cron**, all from
+   the same file, in one command:
+
+   ```bash
+   npx wrangler deploy --config worker/wrangler.local.jsonc
+   ```
+
+   That creates the Worker, binds `<project>-analytics` to it as
+   `ANALYTICS_DB`, and sets its Cron Trigger to `10 3 * * *` (daily, 03:10 UTC).
+   It gets no public URL and answers no requests.
+
+For example, for total-mayhem.com: the database is `total-mayhem-analytics`,
+the Worker could be `total-mayhem-analytics-rollup`, and the id is in the
+site's own `wrangler.toml`.
+
+**Checking it.** Each run writes one JSON line to the Worker's logs (dashboard:
+the Worker, Observability), `{"event":"analytics-rollup","ok":true,...}`, and
+throws, which the dashboard shows as a failed invocation, if anything is wrong.
+After the first night:
+
+```bash
+npx wrangler d1 execute <project>-analytics --remote --command "SELECT COUNT(*) AS days, MIN(day) AS first, MAX(day) AS last FROM daily_totals"
+```
+
+shows up to 10 days. Nothing is deleted until a day is 90 days old, so a young
+database sees no deletion for weeks.
+
+**Trying it first on a copy**, with nothing touching Cloudflare but the one
+read. The export holds visitor labels, so keep the file out of git:
+
+```bash
+npx wrangler d1 export <project>-analytics --remote --output ~/analytics-copy.sql --config worker/wrangler.local.jsonc
+npx wrangler d1 execute <project>-analytics --local --file ~/analytics-copy.sql --config worker/wrangler.local.jsonc
+npx wrangler d1 migrations apply <project>-analytics --local --config worker/wrangler.local.jsonc
+npx wrangler dev --test-scheduled --config worker/wrangler.local.jsonc
+```
+
+then, in another terminal, once for each 10 days of backlog, for a night 100
+days from now (so the deletion has something to delete):
+
+```bash
+curl "http://localhost:8787/cdn-cgi/handler/scheduled?format=json&time=$(node -e 'console.log(Date.now() + 100 * 864e5)')"
+```
+
+The line in the `wrangler dev` output says what it did. Run it until `waiting`
+is 0, then compare `daily_totals` with the rows you exported.
+
+### Plan limits
+
+A Cron Trigger on the Workers Free plan gets 10 ms of CPU and 50 D1 queries per
+run; on the Paid plan up to 15 minutes of CPU for a daily schedule and 1,000
+queries. A `db.batch()` counts as one query. The job stays inside 50 queries, but not
+inside 10 ms: on Node 24, summarising a 2,500-row day took about 12 ms from a
+cold start (5 ms warm), and a 10,000-row day about 35 ms. So on the Free plan a
+run is killed for CPU, leaves nothing half written, deletes nothing and tries
+again the next night, which is safe and does not keep the limit. The Paid plan
+is what makes this job work.
+
 ## Tests
 
 ```bash
 npm test
 ```
 
-Forty-four tests in two files, guards checked by tripping them: the collector never
+Eighty tests in three files, guards checked by tripping them: the collector never
 writes an address, leaves crawlers and probes out of the visitor count, and
 fails silently rather than taking the page down; the report arithmetic is
 right on hand-built rows; the dashboard fails closed with no password and
@@ -356,3 +483,10 @@ file signs a real JWT and verifies it under the matching public key, pages
 rows the way Google pages them, upserts by day, backfills before it settles
 into the hourly rhythm, and turns a missing secret, a missing table and a
 Google error into text rather than a failure.
+The rollup file runs the real SQL against SQLite (so it needs Node 22.13 or newer
+for `node:sqlite`), with D1's batch semantics: every count is stored twice, the
+summaries equal the full dashboard's arithmetic and the sections page's rule on
+random days, a day of nothing but crawlers has no people in it, a second or
+simultaneous run changes nothing, a stale run cannot overwrite a finished day,
+the deletion takes exactly the days past the limit and none beside them, and a
+day that could not be summarised is never deleted.

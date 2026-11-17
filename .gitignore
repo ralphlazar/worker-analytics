@@ -1,2 +1,6 @@
 node_modules/
 .DS_Store
+# wrangler's scratch space and local state.
+.wrangler/
+# A site's own copy of worker/wrangler.jsonc, with its database ids in it.
+worker/wrangler.local.jsonc

@@ -1,0 +1,46 @@
+// The retention Worker (index.js, src/rollup.js): the daily job that keeps the
+// day summaries and deletes pageview rows past the retention limit.
+//
+// This file is a template and is not deployable as it stands. Copy it to
+// wrangler.local.jsonc beside it (that name is gitignored, so a site's own
+// ids stay out of this package), change the three things marked CHANGE, and
+// deploy that copy:
+//
+//   cp worker/wrangler.jsonc worker/wrangler.local.jsonc
+//   npx wrangler deploy --config worker/wrangler.local.jsonc
+//
+// The README, "Retention", says what to do before and after.
+{
+  // CHANGE: one name per site in the Cloudflare account, so two sites'
+  // rollups cannot overwrite each other. Letters, digits and dashes.
+  "name": "analytics-rollup",
+  "main": "index.js",
+  "compatibility_date": "2026-11-01",
+
+  // Nothing on the internet needs to reach this Worker, so it gets no
+  // workers.dev address. It runs only when its cron fires.
+  "workers_dev": false,
+
+  // Daily, 03:10 UTC. Cron expressions are UTC. Any time that is clear of
+  // midnight will do: a day is rolled up once it has been over for an hour.
+  "triggers": { "crons": ["10 3 * * *"] },
+
+  "d1_databases": [
+    {
+      // The name src/rollup.js and worker/index.js read. Do not change it.
+      "binding": "ANALYTICS_DB",
+      // CHANGE: the site's analytics database, the same one its pageviews go
+      // to: its name and its id, from the site's own wrangler config or from
+      // `npx wrangler d1 list`.
+      "database_name": "<project>-analytics",
+      "database_id": "<the id of that database>",
+      // So that `wrangler d1 migrations apply <name> --remote --config ...`
+      // finds migrations/0003_daily_summaries.sql beside the first two.
+      "migrations_dir": "../migrations"
+    }
+  ],
+
+  // So the Worker's log line (one JSON line a night) and any error are kept
+  // and can be read in the dashboard or with `wrangler tail`.
+  "observability": { "enabled": true }
+}
