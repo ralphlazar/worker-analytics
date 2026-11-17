@@ -49,7 +49,7 @@ visitor hashes, since they are keyed on it.
 ## Install
 
 ```bash
-npm install github:ralphlazar/worker-analytics#v0.3.0
+npm install github:ralphlazar/worker-analytics#v0.4.0
 ```
 
 The repo is public, so npm needs no credentials: for a GitHub tag it fetches
